@@ -1,0 +1,124 @@
+###############################################################
+# VOICE SOUND PRESSURE LEVEL (SPL) CALCULATION
+#
+# Author: Dr. Lucas Manca Dal'Ava
+#
+# Description:
+# This script performs:
+# 1) Interactive WAV file selection
+# 2) Acoustic signal extraction
+# 3) Global RMS calculation
+# 4) Global SPL calculation (dB re: 20 µPa)
+# 5) Time-varying SPL calculation (moving windows)
+#
+# Important:
+# Without proper calibration (conversion to Pascal),
+# the resulting values represent relative dB levels,
+# not absolute dB SPL.
+###############################################################
+
+############################
+# 1. Install and load package
+############################
+
+# Run only if not previously installed:
+# install.packages("tuneR")
+
+library(tuneR)
+
+############################
+# 2. Select audio file
+############################
+
+file_path <- file.choose()
+wav <- readWave(file_path)
+
+cat("File successfully loaded.\n")
+cat("Sampling rate:", wav@samp.rate, "Hz\n")
+cat("Duration:", length(wav@left) / wav@samp.rate, "seconds\n")
+
+############################
+# 3. Extract audio signal
+############################
+
+# If stereo, use left channel
+if (wav@stereo) {
+  signal <- wav@left
+  cat("Stereo file detected. Left channel selected.\n")
+} else {
+  signal <- wav@left
+  cat("Mono file detected.\n")
+}
+
+fs <- wav@samp.rate  # sampling rate
+
+############################
+# 4. Calibration
+############################
+
+# Insert calibration factor here (Pa per digital unit).
+# If unknown, keep as 1 (result will be relative SPL).
+
+calibration_factor <- 1  
+
+signal_pa <- signal * calibration_factor
+
+############################
+# 5. Global RMS calculation
+############################
+
+rms_global <- sqrt(mean(signal_pa^2))
+cat("Global RMS:", rms_global, "\n")
+
+############################
+# 6. Global SPL calculation
+############################
+
+p_ref <- 20e-6  # 20 µPa reference pressure
+
+SPL_global <- 20 * log10(rms_global / p_ref)
+cat("Global SPL =", round(SPL_global, 2), "dB\n")
+
+############################
+# 7. Time-varying SPL (moving windows)
+############################
+
+window_ms <- 50   # window size in milliseconds
+window_samples <- round(fs * window_ms / 1000)
+
+n_windows <- floor(length(signal_pa) / window_samples)
+spl_values <- numeric(n_windows)
+
+for (i in 1:n_windows) {
+  
+  start_index <- (i - 1) * window_samples + 1
+  end_index   <- i * window_samples
+  
+  segment <- signal_pa[start_index:end_index]
+  rms_segment <- sqrt(mean(segment^2))
+  
+  spl_values[i] <- 20 * log10(rms_segment / p_ref)
+}
+
+############################
+# 8. Time axis
+############################
+
+time_axis <- seq(0,
+                 by = window_ms/1000,
+                 length.out = n_windows)
+
+############################
+# 9. Plot results
+############################
+
+plot(time_axis,
+     spl_values,
+     type = "l",
+     xlab = "Time (seconds)",
+     ylab = "SPL (dB)",
+     main = paste("SPL Over Time | Window =", window_ms, "ms"))
+
+###############################################################
+# END OF SCRIPT
+###############################################################
